@@ -136,18 +136,8 @@ public class MainActivity extends AppCompatActivity {
     private void fetchData() {
         HttpLoggingInterceptor interceptor = new HttpLoggingInterceptor();
         interceptor.setLevel(HttpLoggingInterceptor.Level.BODY);
-        OkHttpClient client = new OkHttpClient.Builder()
-                .addInterceptor(interceptor)
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
-                .writeTimeout(30, TimeUnit.SECONDS)
-                .build();
 
-        Gson gson = new GsonBuilder()
-                .setLenient()
-                .create();
-
-        disposable = Observable.interval(1000, 5000,
+        disposable = Observable.interval(0, 5000,
                 TimeUnit.MILLISECONDS)
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(this::callDataEndpoint, this::onError);
