@@ -14,7 +14,7 @@ public class ViewModel extends AndroidViewModel {
         dataRepo = new DataRepo(application);
     }
 
-    public LiveData<MyData> getLiveData() {
-        return dataRepo.getMyDataMutableLiveData();
-    }
+//    public LiveData<MyData> getLiveData() {
+//        return dataRepo.getMyDataMutableLiveData();
+//    }
 }

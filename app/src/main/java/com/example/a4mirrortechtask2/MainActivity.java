@@ -10,6 +10,7 @@ import android.os.Bundle;
 import android.provider.CalendarContract;
 import android.util.Log;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
@@ -17,21 +18,33 @@ import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.Volley;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import app.futured.donut.DonutProgressView;
 import app.futured.donut.DonutSection;
+import io.reactivex.Observable;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.schedulers.Schedulers;
+import okhttp3.OkHttpClient;
+import okhttp3.logging.HttpLoggingInterceptor;
 
 public class MainActivity extends AppCompatActivity {
 
     private DonutProgressView donutProgressView;
     private List<DonutSection> donutSectionList = new ArrayList<>();
     private TextView maxValueTextView, currentValueTextView, percentageCompleteTextView;
+
+    ApiClient apiClient;
+    Disposable disposable;
 
     private RequestQueue requestQueue;
 
@@ -49,15 +62,95 @@ public class MainActivity extends AppCompatActivity {
         try {
             init();
         } catch (JSONException e) {
-            maxValueTextView.setText("There is an error");
+            Log.e("TAG", "onCreate: Error in MainActivity");
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        if (disposable.isDisposed()) {
+            disposable = Observable.interval(0, 1000,
+                    TimeUnit.MILLISECONDS)
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(this::callDataEndpoint, this::onError);
+        }
+    }
+
+    private void onError(Throwable throwable) {
+        Toast.makeText(this, "Error in Observable timer" + throwable.getMessage(), Toast.LENGTH_SHORT).show();
+        Log.e("TAG", "onError: " +  throwable.toString() );
+    }
+
+    @SuppressLint("CheckResult")
+    private void callDataEndpoint(Long aLong) {
+
+        Observable<MyData> observable = apiClient.getMyData();
+        observable.subscribeOn(Schedulers.newThread()).
+                observeOn(AndroidSchedulers.mainThread())
+                .map(result -> result)
+                .subscribe(this::handleResults, this::handleError);
+
+    }
+
+    private void handleError(Throwable throwable) {
+        maxValueTextView.setText("-");
+        currentValueTextView.setText("-");
+        percentageCompleteTextView.setText("-");
+    }
+
+    @SuppressLint("SetTextI18n")
+    private void handleResults(MyData myData) {
+        if (myData != null) {
+            Log.e("TAG", "" + myData.getCurrentValue());
+            maxValue = myData.getMaxValue();
+            currentValue = myData.getCurrentValue();
+            Log.e("TAG", "" + maxValue + currentValue);
+            percentageComplete = currentValue * 100 / maxValue;
+            Log.e("TAG", "" + percentageComplete);
+            maxValueTextView.setText(Integer.toString(maxValue));
+            currentValueTextView.setText(Integer.toString(currentValue));
+            percentageCompleteTextView.setText(percentageComplete + "%");
+        } else {
+            Toast.makeText(this, "No Result found", Toast.LENGTH_SHORT).show();
+
+        }
+
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        disposable.dispose();
     }
 
     private void init() throws JSONException {
         initView();
+        fetchData();
 //        setObservers();
         setDonutView();
-        getDataUsingVolley();
+//        getDataUsingVolley();
+    }
+
+    private void fetchData() {
+        HttpLoggingInterceptor interceptor = new HttpLoggingInterceptor();
+        interceptor.setLevel(HttpLoggingInterceptor.Level.BODY);
+        OkHttpClient client = new OkHttpClient.Builder()
+                .addInterceptor(interceptor)
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .build();
+
+        Gson gson = new GsonBuilder()
+                .setLenient()
+                .create();
+
+        disposable = Observable.interval(1000, 5000,
+                TimeUnit.MILLISECONDS)
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(this::callDataEndpoint, this::onError);
     }
 
     private void initView() {
@@ -69,17 +162,20 @@ public class MainActivity extends AppCompatActivity {
         viewModel = new ViewModelProvider(this).get(ViewModel.class);
 
         requestQueue = Volley.newRequestQueue(this);
+
+        apiClient = RetrofitInstance.getApiService();
     }
 
     @SuppressLint("SetTextI18n")
     public void setObservers() {
-        viewModel.getLiveData().observe(this, myData -> {
-            maxValue = myData.getMaxValue();
-            currentValue = myData.getCurrentValue();
-            maxValueTextView.setText("The max value is: " + myData.getMaxValue());
-            currentValueTextView.setText("The current value is:  " + myData.getCurrentValue());
-            setDonutView();
-        });
+//        viewModel.getLiveData().observe(this, myData -> {
+//            maxValue = myData.getMaxValue();
+//            currentValue = myData.getCurrentValue();
+//            percentageComplete = currentValue * 100 / maxValue;
+//            maxValueTextView.setText("" + myData.getMaxValue());
+//            currentValueTextView.setText("" + myData.getCurrentValue());
+//            setDonutView();
+//        });
 
     }
 
